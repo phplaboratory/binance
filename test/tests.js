@@ -151,6 +151,140 @@ describe('BinanceRest', () => {
         });
     });
 
+
+
+    describe('general-rate-limiter', () => {
+
+        beforeEach(() => {
+            binance = new BinanceRest({
+                key: 'super_secret_api_key',
+                secret: 'super_secret_secret',
+                disableBeautification: true,
+                limitRate: 3
+            });
+        });
+
+        it('allows using callbacks', (done) => {
+            mockRequest.setHandler('api/v1/ping', (options, callback) => {
+                expect(options).to.deep.equal({
+                    timeout: 15000,
+                    url: 'https://api.binance.com/api/v1/ping'
+                });
+                callback(null, { statusCode: 200 }, '{}');
+            });
+            binance.ping((err, response) => {
+                expect(err).to.be.null;
+                expect(response).to.be.an('object').that.is.empty;
+                done();
+            });
+        });
+
+        it('calls reject on the promise if the status code returned is not 2xx', () => {
+            mockRequest.setHandler('api/v1/depth', (options, callback) => {
+                expect(options).to.deep.equal({
+                    timeout: 15000,
+                    url: 'https://api.binance.com/api/v1/depth?symbol=TEST'
+                });
+                callback(null, { statusCode: 400 }, '{"code":-1121,"msg":"Invalid symbol."}');
+            });
+            return binance.depth('TEST')
+                .then(() => {
+                    throw new Error('Request should not have been successful');
+                })
+                .catch((err) => {
+                    expect(err).to.deep.equal({
+                        code: -1121,
+                        msg: 'Invalid symbol.'
+                    });
+                });
+        });
+
+        it('handles non 2xx status codes with responses that are not JSON when a promise is specified', () => {
+            mockRequest.setHandler('api/v1/depth', (options, callback) => {
+                callback(null, { statusCode: 500 }, '<html>Errorz!</html>');
+            });
+            return binance.depth('TEST')
+                .then(() => {
+                    throw new Error('Request should not have been successful');
+                })
+                .catch((err) => {
+                    expect(err).to.equal('<html>Errorz!</html>');
+                });
+        });
+
+        it('handles errors from the request library when a promise is specified', () => {
+            mockRequest.setHandler('api/v1/depth', (options, callback) => {
+                callback(new Error('No request for you!'));
+            });
+            return binance.depth('TEST')
+                .then(() => {
+                    throw new Error('Request should not have been successful');
+                })
+                .catch((err, response) => {
+                    expect(err).to.be.an('error');
+                    expect(err.message).to.equal('No request for you!');
+                    expect(response).to.be.undefined;
+                });
+        });
+
+        it('returns an error to the callback if the status code returned is not 2xx', (done) => {
+            mockRequest.setHandler('api/v1/depth', (options, callback) => {
+                expect(options).to.deep.equal({
+                    timeout: 15000,
+                    url: 'https://api.binance.com/api/v1/depth?symbol=TEST'
+                });
+                callback(null, { statusCode: 400 }, '{"code":-1121,"msg":"Invalid symbol."}');
+            });
+            binance.depth('TEST', (err, payload) => {
+                try {
+                    expect(payload).to.deep.equal({
+                        code: -1121,
+                        msg: 'Invalid symbol.'
+                    });
+                    expect(err).to.be.an('error');
+                    expect(err.message).to.equal('Response code 400');
+                    done();
+                } catch (error) {
+                    done(error);
+                }
+            });
+        });
+
+        it('returns an error to the callback if the status code returned is not 2xx and the body is not JSON', (done) => {
+            mockRequest.setHandler('api/v1/depth', (options, callback) => {
+                expect(options).to.deep.equal({
+                    timeout: 15000,
+                    url: 'https://api.binance.com/api/v1/depth?symbol=TEST'
+                });
+                callback(null, { statusCode: 500 }, '<html>Errorz!</html>');
+            });
+            binance.depth('TEST', (err, payload) => {
+                try {
+                    expect(payload).to.equal('<html>Errorz!</html>');
+                    expect(err).to.be.an('error');
+                    expect(err.message).to.equal('Response code 500');
+                    done();
+                } catch (error) {
+                    done(error);
+                }
+            });
+        });
+
+        it('throws an error if query is invalid', () => {
+            expect(() => {
+                binance.depth(null, () => {});
+            }).to.throw();
+        });
+
+        it('throws an error if the callback is invalid', () => {
+            expect(() => {
+                binance.depth('BNBBTC', null);
+            }).to.throw();
+        });
+    });
+
+
+
     describe('public API', () => {
 
         beforeEach(() => {
