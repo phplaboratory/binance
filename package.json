@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "request": "^2.81.0",
-    "request-rate-limiter": "^1.0.2",
+    "request-rate-limiter": "github:phplaboratory/request-rate-limiter",
     "underscore": "^1.8.3",
     "ws": "^3.1.0"
   },
